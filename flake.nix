@@ -18,7 +18,13 @@
             packages = with pkgs; [
               emacs
               ethersync.packages.${system}.default
-              git
+            ];
+          };
+
+          qualityChecks = pkgs.mkShell {
+            name = "quality";
+            packages = with pkgs; [
+              cocogitto
             ];
           };
         });
