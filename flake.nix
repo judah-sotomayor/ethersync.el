@@ -21,7 +21,7 @@
             ];
           };
 
-          qualityChecks = pkgs.mkShell {
+          quality = pkgs.mkShell {
             name = "quality";
             packages = with pkgs; [
               cocogitto
