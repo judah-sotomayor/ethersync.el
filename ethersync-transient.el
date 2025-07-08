@@ -36,16 +36,29 @@
 ;;;    ;;; ("c" "Commit"         magit-commit)
 
 
+;;;
 (get-buffer-create "test_buffer")
+
 
 ;;; (display-buffer "test_buffer"
 ;;;                 transient-display-buffer-action)
 
+;;; (display-buffer BUFFER-OR-NAME &optional ACTION FRAME)
 (display-buffer "test_buffer")
 
 
 (with-current-buffer "test_buffer"
   (insert "Hi"))
+
+(transient-define-prefix ethersync-dispatch()
+  "Invoke an Ethersync command from a list of available commands."
+  ["Available Commands"
+   [("s" "Share"          ether-share)
+    ("j" "Join"           ether-join)
+    ("c" "Status"         ether-status)
+    ]])
+
+
 
 ;;; (transient-define-prefix test_buffer_menu ()
 ;;;   "Defining a new test transient."

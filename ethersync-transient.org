@@ -181,6 +181,32 @@ If you begin a group vector with a string, you get a group heading.  Groups also
 
 
 
+* Helpful Functions
+
+Yes or no input function: (Defined line 151 of `magit-process.el`)
+
+#+BEGIN_SRC elisp
+    (defcustom magit-process-yes-or-no-prompt-regexp
+    (eval-when-compile
+        (concat " [([]"
+                "\\([Yy]\\(?:es\\)?\\)"
+                "[/|]"
+                "\\([Nn]o?\\)"
+                ;; OpenSSH v8 prints this.  See #3969.
+                "\\(?:/\\[fingerprint\\]\\)?"
+                "[])] ?[?:]? ?$"))
+    "Regexp matching Yes-or-No prompts of Git and its subprocesses."
+    :package-version '(magit . "2.1.0")
+    :group 'magit-process
+    :type 'regexp)
+#+END_SRC
+
+
+
+
+
+
+
 #+BEGIN_SRC elisp
 (progn 1 3 5 4 7 2)
 #+END_SRC
