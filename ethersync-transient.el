@@ -1,6 +1,6 @@
 ;;; ethersync-transient.el --- Transient UI for Ethersync -*- lexical-binding: t; -*-
 ;;;  Reuben Umana
-;;;  Magit Buffer Window Modificaiton
+;;;  Ethersync Transient Menu System
 
 
 ;;;   Common Functions
