@@ -1,68 +1,69 @@
 ;;; ethersync-transient.el --- Transient UI for Ethersync -*- lexical-binding: t; -*-
 ;;;  Reuben Umana
 ;;;  Magit Buffer Window Modificaiton
-;;;
-;;; Doom / Emacs Configuration Helper
-;;; Prefix: my/doom-helper-transient
-;;;
-;;; Suffixes / Infixes:
-;;;
-;;;     Open (infix)
-;;;     - init.el
-;;;     - config.el
-;;;     - packages.el
-;;;
-;;;     Reload Doom config (doom/reload) (Suffix)
-;;;
-;;;     Open messages buffer (Suffix)
-;;;
-;;;     Open Doom documentation (Infix)
-;;;
-;;;
-;;;
-;;;
-;;;
-;;;
 
 
+;;;   Common Functions
 
-;;; (transient-define-prefix doom-config-helper()
-;;;   "Navigate the configs"
-;;;   ["Navigate the configs with these commands"
-;;;    [("R" "Reload Doom Config"          doom/reload)]]
-;;;     ;;; a
-;;;    ;;; ("b" "Branch"         magit-branch)
-;;;    ;;; ("B" "Bisect"         magit-bisect)
-;;;    ;;; ("c" "Commit"         magit-commit)
+(defun esync--unix-socket ()
+  "Specify the unix socket that ethersync should use."
+  (interactive)
+  (message "Opening text input field..."))
+
+(defun esync--debug ()
+  "Debug the Ethersync session."
+  (interactive)
+  (message "Passing debug argument..."))
+
+;;; Ether-Share Functions
+(defun esync--start-daemon ()
+  "Start the ethersync daemon."
+  (interactive)
+  (message "Starting the Daemon..."))
+
+(defun esync--specify-directory ()
+  "Specify the directory you would like to share."
+  (interactive)
+  (message "Running find in the minibuffer..."))
+
+(transient-define-prefix ether-share(name)
+  "Host an Ethersync session."
+  ["Available Commands"
+   ("s" "Start the daemon"          esync--start-daemon)
+    ("d" "Specify a directory"      esync--specify-directory)
+    ("n" "Specify Unix Socket Name" esync--unix-socket)
+    ("v" "Debug the daemon" esync--debug)
+    ])
+
+;;; Ether-Join Functions
+(defun esync--join-session ()
+  "Join an Ethersync session."
+  (interactive)
+  (message "Opening text input field..."))
+
+(transient-define-prefix ether-join(name)
+  "Join an Ethersync session."
+  ["Available Commands"
+   ("j" "Join a session"          esync--join-session)
+    ("n" "Specify Unix Socket Name" esync--unix-socket)
+    ("v" "Debug the connection" esync--debug)
+    ])
+
+;;; Ether-Status Function
+(defun ether-status ()
+  "Loading details about the session."
+  (interactive)
+  (message "Status..."))
 
 
-;;;
-(get-buffer-create "test_buffer")
-
-
-;;; (display-buffer "test_buffer"
-;;;                 transient-display-buffer-action)
-
-;;; (display-buffer BUFFER-OR-NAME &optional ACTION FRAME)
-(display-buffer "test_buffer")
-
-
-(with-current-buffer "test_buffer"
-  (insert "Hi"))
-
+;;; Ethersync Dispatcher
 (transient-define-prefix ethersync-dispatch()
   "Invoke an Ethersync command from a list of available commands."
-  ["Available Commands"
-   [("s" "Share"          ether-share)
+  [" -- Ethersync for Emacs --\n"
+   ("s" "Share"          ether-share)
     ("j" "Join"           ether-join)
     ("c" "Status"         ether-status)
-    ]])
+    ])
 
+(ethersync-dispatch)
 
-
-;;; (transient-define-prefix test_buffer_menu ()
-;;;   "Defining a new test transient."
-;;;
-;;;   [("t" "test        'print-buffer)]
-;;;
-;;;   )

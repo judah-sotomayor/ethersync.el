@@ -1,4 +1,4 @@
-#+title: Magit Buffer Mod
+#+title: Ethersync Transient Org Notes
 
 * Key Terms
 ** Transient
@@ -54,6 +54,79 @@ The available suffix and infix commands and their state are shown in a menu buff
 
   The Transient package provides a macro that allows you to define prefixes for your specific project. This macro is called =transient-define-prefix= (defined 1025 of =transient.el= in the transient package). The magit devs used this macro to define their prefixes (for example, the ~magit-dispatch~ prefix is defined line 332 of =magit.el= in the magit package).
 
+*** Prefix Source Code
+
+#+begin_src emacs-lisp :tangle yes
+
+(defmacro transient-define-prefix (name arglist &rest args)
+  "Define NAME as a transient prefix command.
+
+ARGLIST are the arguments that command takes.
+DOCSTRING is the documentation string and is optional.
+
+These arguments can optionally be followed by key-value pairs.
+Each key has to be a keyword symbol, either `:class' or a keyword
+argument supported by the constructor of that class.  The
+`transient-prefix' class is used if the class is not specified
+explicitly.
+
+GROUPs add key bindings for infix and suffix commands and specify
+how these bindings are presented in the menu buffer.  At least
+one GROUP has to be specified.  See info node `(transient)Binding
+Suffix and Infix Commands'.
+
+The BODY is optional.  If it is omitted, then ARGLIST is also
+ignored and the function definition becomes:
+
+  (lambda ()
+    (interactive)
+    (transient-setup \\='NAME))
+
+If BODY is specified, then it must begin with an `interactive'
+form that matches ARGLIST, and it must call `transient-setup'.
+It may however call that function only when some condition is
+satisfied; that is one of the reason why you might want to use
+an explicit BODY.
+
+All transients have a (possibly nil) value, which is exported
+when suffix commands are called, so that they can consume that
+value.  For some transients it might be necessary to have a sort
+of secondary value, called a scope.  Such a scope would usually
+be set in the commands `interactive' form and has to be passed
+to the setup function:
+
+  (transient-setup \\='NAME nil nil :scope SCOPE)
+
+\(fn NAME ARGLIST [DOCSTRING] [KEYWORD VALUE]... GROUP... [BODY...])"
+  (declare (debug ( &define name lambda-list
+                    [&optional lambda-doc]
+                    [&rest keywordp sexp]
+                    [&rest vectorp]
+                    [&optional ("interactive" interactive) def-body]))
+           (indent defun)
+           (doc-string 3))
+  (pcase-let
+      ((`(,class ,slots ,groups ,docstr ,body ,interactive-only)
+        (transient--expand-define-args args arglist 'transient-define-prefix)))
+    `(progn
+       (defalias ',name
+         ,(if body
+              `(lambda ,arglist ,@body)
+            `(lambda ()
+               (interactive)
+               (transient-setup ',name))))
+       (put ',name 'interactive-only ,interactive-only)
+       (put ',name 'function-documentation ,docstr)
+       (put ',name 'transient--prefix
+            (,(or class 'transient-prefix) :command ',name ,@slots))
+       (transient--set-layout
+        ',name
+        (list ,@(mapcan (lambda (s) (transient--parse-child name s)) groups))))))
+
+#+end_src
+
+
+*** Prefix Documentation
 
 4.2 Defining Transients (From Transient Documentation)
 =======================
@@ -130,7 +203,50 @@ group), then the symbol should be quoted.
 
   Suffix commands usually quit the transient and they may use the values set by the infix commands, i.e., the infix *arguments*.
 
+*** Suffix Source Code
 
+    #+begin_src emacs-lisp :tangle yes
+
+(defmacro transient-define-suffix (name arglist &rest args)
+  "Define NAME as a transient suffix command.
+
+ARGLIST are the arguments that the command takes.
+DOCSTRING is the documentation string and is optional.
+
+These arguments can optionally be followed by key-value pairs.
+Each key has to be a keyword symbol, either `:class' or a
+keyword argument supported by the constructor of that class.
+The `transient-suffix' class is used if the class is not
+specified explicitly.
+
+The BODY must begin with an `interactive' form that matches
+ARGLIST.  The infix arguments are usually accessed by using
+`transient-args' inside `interactive'.
+
+\(fn NAME ARGLIST [DOCSTRING] [KEYWORD VALUE]... [BODY...])"
+  (declare (debug ( &define name lambda-list
+                    [&optional lambda-doc]
+                    [&rest keywordp sexp]
+                    [&optional ("interactive" interactive) def-body]))
+           (indent defun)
+           (doc-string 3))
+  (pcase-let
+      ((`(,class ,slots ,_ ,docstr ,body ,interactive-only)
+        (transient--expand-define-args args arglist 'transient-define-suffix)))
+    `(progn
+       (defalias ',name
+         ,(if (and (not body) class (oref-default class definition))
+              `(oref-default ',class definition)
+            `(lambda ,arglist ,@body)))
+       (put ',name 'interactive-only ,interactive-only)
+       (put ',name 'function-documentation ,docstr)
+       (put ',name 'transient--suffix
+            (,(or class 'transient-suffix) :command ',name ,@slots)))))
+    #+end_src
+
+
+
+*** Suffix Documentation
 
 4.2 Defining Transients (From Transient Documentation)
 =======================
@@ -152,9 +268,6 @@ serve about the same purpose as the variables ‘prefix-arg’ and
 arguments have been set using a command such as ‘universal-argument’.
 
 
-
-
-
   The Transient package provides a macro that allows you to define suffixes for your specific project. This macro is called =transient-define-suffix= (defined 1086 of =transient.el= in the transient package). I have not found where / if the magit devs used this macro to define their suffixes.
 
   The hello transient user input sequence is:
@@ -170,6 +283,59 @@ A user input sequence with infixes:
 
 =Prefix -> Infix -> Infix -> Suffix=
 
+
+*** Infix Source Code
+
+#+begin_src emacs-lisp :tangle yes
+
+(defmacro transient-define-infix (name arglist &rest args)
+  "Define NAME as a transient infix command.
+
+ARGLIST is always ignored and reserved for future use.
+DOCSTRING is the documentation string and is optional.
+
+At least one key-value pair is required.  All transient infix
+commands are equal to each other (but not eq).  It is meaning-
+less to define an infix command, without providing at least one
+keyword argument (usually `:argument' or `:variable', depending
+on the class).  The suffix class defaults to `transient-switch'
+and can be set using the `:class' keyword.
+
+The function definitions is always:
+
+  (lambda ()
+    (interactive)
+    (let ((obj (transient-suffix-object)))
+      (transient-infix-set obj (transient-infix-read obj)))
+    (transient--show))
+
+`transient-infix-read' and `transient-infix-set' are generic
+functions.  Different infix commands behave differently because
+the concrete methods are different for different infix command
+classes.  In rare case the above command function might not be
+suitable, even if you define your own infix command class.  In
+that case you have to use `transient-define-suffix' to define
+the infix command and use t as the value of the `:transient'
+keyword.
+
+\(fn NAME ARGLIST [DOCSTRING] KEYWORD VALUE [KEYWORD VALUE]...)"
+  (declare (debug ( &define name lambda-list
+                    [&optional lambda-doc]
+                    keywordp sexp
+                    [&rest keywordp sexp]))
+           (indent defun)
+           (doc-string 3))
+  (pcase-let
+      ((`(,class ,slots ,_ ,docstr ,_ ,interactive-only)
+        (transient--expand-define-args args arglist 'transient-define-infix t)))
+    `(progn
+       (defalias ',name #'transient--default-infix-command)
+       (put ',name 'interactive-only ,interactive-only)
+       (put ',name 'completion-predicate #'transient--suffix-only)
+       (put ',name 'function-documentation ,docstr)
+       (put ',name 'transient--suffix
+            (,(or class 'transient-switch) :command ',name ,@slots)))))
+#+end_src
 
 * Groups & Layouts
 To define a transient, you need at least one group.  Groups are vectors, delimited as =[ ...group... ]=.
@@ -213,3 +379,45 @@ Yes or no input function: (Defined line 151 of `magit-process.el`)
 
 #+RESULTS:
 : 2
+
+
+
+
+
+* Ethersync Transient Code Testing:
+
+
+(transient-define-prefix ethersync-dispatch()
+  "Invoke an Ethersync command from a list of available commands."
+  ["Available Commands"
+   ("s" "Share"          ether-share)
+    ("j" "Join"           ether-join)
+    ("c" "Status"         ether-status)
+    ])
+
+
+;;; Evaluating Last sexp produces this:
+;;; => [2 nil ([transient-column (:description "Available Commands") ((transient-suffix :key "s" :description "Share" :command ether-share) (transient-suffix : key "j" :description "Join" :command ether-join) (transient-suffix :key "c" :description "Status" : command ether-status) ) ]) ]
+;;;
+;;; So, when the prefix is defined, it defines an instance of the ~transient-suffix~ class for each key mapping. The definition of transient suffix is pasted below:
+;;;
+;;; (defclass transient-suffix (transient-child)
+;;;   ((definition  :allocation :class    :initform nil)
+;;;    (key         :initarg :key)
+;;;    (command     :initarg :command)
+;;;    (transient   :initarg :transient)
+;;;    (format      :initarg :format      :initform " %k %d")
+;;;    (description :initarg :description :initform nil)
+;;;    (face        :initarg :face        :initform nil)
+;;;    (show-help   :initarg :show-help   :initform nil)
+;;;    (summary     :initarg :summary     :initform nil))
+;;;   "Superclass for suffix command.")
+
+
+
+I get this error when evaluation the prefix in a minibuffer:
+
+< insert error here >
+
+
+This is why chat says I'm getting the error:
