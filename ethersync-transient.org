@@ -1,6 +1,6 @@
-#+title: Ethersync Transient Org Notes
+#+title: Ethersync Transient Notes - Ethersync for Emacs
 
-Goal: Get a quick undestanding of the key components that make transients work.
+Goal: Get a quick understanding of the key components that make transients work.
 
 * Key Terms
 ** Transient

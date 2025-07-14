@@ -1,6 +1,6 @@
 ;;; ethersync-transient.el --- Transient UI for Ethersync -*- lexical-binding: t; -*-
 ;;;  Reuben Umana
-;;;  Ethersync Transient Menu System
+;;;  Ethersync Transient Menu System - Ethersync for Emacs
 
 
 ;;;   Common Functions
