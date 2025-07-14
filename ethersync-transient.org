@@ -1,5 +1,7 @@
 #+title: Ethersync Transient Org Notes
 
+Goal: Get a quick undestanding of the key components that make transients work.
+
 * Key Terms
 ** Transient
 - Taken from the Transient Showcase Guide
