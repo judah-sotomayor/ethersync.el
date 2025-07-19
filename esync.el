@@ -155,9 +155,9 @@ Overlay should be across RANGES. Use URI and NAME."
             ((&plist :character start-c :line start-l) start)
             ((&plist :character end-c :line end-l) end)
             (start-position
-             (esync--position-from-ethersync-position start-c start-l))
+             (esync--position-from-ethersync-position start-l start-c))
             (end-position
-             (+ (esync--position-from-ethersync-position end-c end-l)
+             (+ (esync--position-from-ethersync-position end-l end-c)
                 (if (= start-c end-c) 1 0)))
             (color (esync--get-user-color userid))
             (new-overlay (make-overlay start-position end-position nil t nil)))
@@ -179,13 +179,18 @@ Overlay should be across RANGES. Use URI and NAME."
            (esync--workspace-cursors workspace)))
 
 ;;; * Position and Coordinates Control
-(defun esync--position-from-ethersync-position (char line)
-  "Get position number in current buffer from CHAR, LINE."
-  (save-excursion
-    (goto-char (point-min))
-    (forward-line line)
-    (move-to-column char)
-    (point)))
+(defmacro esync--with-position (line char &rest body)
+  "Execute BODY at position LINE, CHAR."
+  `(save-excursion
+     (goto-char (point-min))
+     (forward-line ,line)
+     (move-to-column ,char)
+     ,@body))
+
+(defun esync--position-from-ethersync-position (line char)
+  "Get position number in current buffer from LINE, CHAR."
+  (esync--with-position line char
+                        (point)))
 
 ;;; * Data Validation
 (defun esync--valid-uri-p (workspace uri)
