@@ -54,6 +54,44 @@
   (status nil)
   (cursors nil))
 
+;;; * Hooks
+
+(defvar-local esync--last-point nil)
+(defvar-local esync--last-mark nil)
+
+(defun esync--update-local-cursor ()
+  "Check for point or mark movement and notify the daemon."
+
+  (if-let* ((ranges (esync--local-cursor-ranges))
+            (client (esync--workspace-client esync--cached-workspace))
+            (file "file:///Users/user/projects/ethersync.el/test.txt"))
+      (jsonrpc-notify client
+                      :cursor `(:uri ,file :ranges ,ranges))))
+
+(defun esync--local-cursor-ranges ()
+  "Return the ranges for the current cursor and mark.
+If these ranges are unchanged since the last invocation, return nil."
+  (let ((point (point))
+        (mark (when (use-region-p) (mark))))
+    (unless (and (eq point esync--last-point)
+                 (eq mark esync--last-mark))
+      (setq esync--last-point point
+            esync--last-mark mark)
+      (vector (list :start (esync--cursor-position-line-char)
+                    :end
+                    (if (null mark)
+                        (esync--cursor-position-line-char)
+                      (save-excursion
+                        (exchange-point-and-mark)
+                        (esync--cursor-position-line-char))))))))
+
+(defun esync--cursor-position-line-char ()
+  "Return current cursor position line and column."
+  (save-excursion
+    (without-restriction
+      (let ((line (- (string-to-number (format-mode-line "%l")) 1))
+            (char (current-column)))
+        (list :line line :character char)))))
 ;;; * Ethersync Client
 ;;; ** Process Management
 (defun esync--start-client-process (workspace)
@@ -111,7 +149,7 @@ FILE must be in the lsp uri format: \"file:///path/to/file\""
                          :success-fn (esync--create-log "Opened file" file)
                          :timeout-fn (esync--create-log "Done" file)))
 
-;;; * Notification Handlers
+;;; ** Notification Handlers
 (cl-defgeneric esync--handle-notification (workspace connection method &rest params)
   "Handle ethersync client CONNECTION's METHOD notification with PARAMS.
 WORKSPACE is passed through for specific data needs.")
@@ -202,4 +240,3 @@ Overlay should be across RANGES. Use URI and NAME."
 
 (provide 'esync)
 ;;; esync.el ends here
-
