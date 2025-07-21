@@ -73,41 +73,7 @@
       (jsonrpc-notify client
                       :cursor `(:uri ,file :ranges ,ranges))))
 
-(defun esync--local-cursor-ranges ()
-  "Return the ranges for the current cursor and mark.
-If these ranges are unchanged since the last invocation, return nil."
-  (if (and esync-support-evil evil-visual-block-overlays)
-      (save-excursion
-        (cl-map 'vector (lambda (o)
-                          (list :start (progn
-                                         (goto-char (overlay-start o))
-                                         (esync--cursor-position-line-char))
-                                :end (progn
-                                       (goto-char (overlay-end o))
-                                       (esync--cursor-position-line-char))))
-                evil-visual-block-overlays))
 
-    ;; else
-    (let ((point (point))
-          (mark (when (use-region-p) (mark))))
-      (unless (and (eq point esync--last-point)
-                   (eq mark esync--last-mark))
-        (setq esync--last-point point
-              esync--last-mark mark)
-        (vector (list :start (esync--cursor-position-line-char)
-                      :end
-                      (if (null mark)
-                          (esync--cursor-position-line-char)
-                        (save-mark-and-excursion
-                          (goto-char mark)
-                          (esync--cursor-position-line-char)))))))))
-
-(defun esync--cursor-position-line-char ()
-  "Return current cursor position line and column."
-  (without-restriction
-    (let ((line (- (string-to-number (format-mode-line "%l")) 1))
-          (char (current-column)))
-      (list :line line :character char))))
 
 ;;; * Ethersync Client
 ;;; ** Process Management
@@ -192,7 +158,7 @@ Overlay should be across RANGES. Use URI and NAME."
     (when buffer
       (with-current-buffer buffer
         (esync--clear-overlays userid)
-        (esync--set-overlays userid ranges)
+        (esync--set-overlays userid ranges name)
         (esync--register-cursor workspace name ranges file userid)
         ))))
 
@@ -202,22 +168,35 @@ Overlay should be across RANGES. Use URI and NAME."
     (when (string-equal (overlay-get o 'esync-user-id) userid)
       (delete-overlay o))))
 
-(defun esync--set-overlays (userid ranges)
-  "Create an overlay in current buffer over RANGES for USERID."
-  (seq-doseq (range ranges)
-    (-let* (((&plist :start :end) range)
-            ((&plist :character start-c :line start-l) start)
-            ((&plist :character end-c :line end-l) end)
-            (start-position
-             (esync--position-from-ethersync-position start-l start-c))
-            (end-position
-             (+ (esync--position-from-ethersync-position end-l end-c)
-                (if (= start-c end-c) 1 0)))
-            (color (esync--get-user-color userid))
-            (new-overlay (make-overlay start-position end-position nil t nil)))
-      (overlay-put new-overlay 'category 'esync-cursor)
-      (overlay-put new-overlay 'esync-user-id userid)
-      (overlay-put new-overlay 'face `(:background ,color)))))
+'(defun esync--set-overlays (userid ranges name)
+   "Create an overlay in current buffer over RANGES for USERID."
+   (-let* ((r (seq-elt ranges 0))
+           ((&plist :start ) r)
+           ((&plist :line start-l) start)
+           (start-position (esync--position-from-ethersync-position start-l 0))
+           (end-position (esync--with-position start-l 0 (end-of-line) (point)))
+           (new-overlay (make-overlay start-position end-position nil t nil)))
+
+     (overlay-put new-overlay 'category 'esync-name)
+     (overlay-put new-overlay 'esync-user-id userid)
+     (overlay-put new-overlay 'after-string
+                  (propertize (concat " " name) 'face
+                              `(:foreground ,(esync--get-user-color userid)))))
+   (seq-doseq (range ranges)
+     (-let* (((&plist :start :end) range)
+             ((&plist :character start-c :line start-l) start)
+             ((&plist :character end-c :line end-l) end)
+             (start-position
+              (esync--position-from-ethersync-position start-l start-c))
+             (end-position
+              (+ (esync--position-from-ethersync-position end-l end-c)
+                 (if (= start-c end-c) 1 0)))
+             (color (esync--get-user-color userid))
+             (new-overlay (make-overlay start-position end-position nil t nil)))
+       (overlay-put new-overlay 'category 'esync-cursor)
+       (overlay-put new-overlay 'esync-user-id userid)
+       (overlay-put new-overlay 'face `(:background ,color))
+       )))
 
 (defun esync--get-user-color (userid)
   "Return a color for USERID."
@@ -245,6 +224,42 @@ Overlay should be across RANGES. Use URI and NAME."
   "Get position number in current buffer from LINE, CHAR."
   (esync--with-position line char
                         (point)))
+
+(defun esync--cursor-position-line-char ()
+  "Return current cursor position line and column."
+  (without-restriction
+    (let ((line (- (string-to-number (format-mode-line "%l")) 1))
+          (char (current-column)))
+      (list :line line :character char))))
+
+(defun esync--local-cursor-ranges ()
+  "Return the ranges for the current cursor and mark.
+If these ranges are unchanged since the last invocation, return nil."
+  (if (and esync-support-evil evil-visual-block-overlays)
+      (save-excursion
+        (cl-map 'vector (lambda (o)
+                          (list :start (progn
+                                         (goto-char (overlay-start o))
+                                         (esync--cursor-position-line-char))
+                                :end (progn
+                                       (goto-char (overlay-end o))
+                                       (esync--cursor-position-line-char))))
+                evil-visual-block-overlays))
+    ;; else
+    (let ((point (point))
+          (mark (when (use-region-p) (mark))))
+      (unless (and (eq point esync--last-point)
+                   (eq mark esync--last-mark))
+        (setq esync--last-point point
+              esync--last-mark mark)
+        (vector (list :start (esync--cursor-position-line-char)
+                      :end
+                      (if (null mark)
+                          (esync--cursor-position-line-char)
+                        (save-mark-and-excursion
+                          (goto-char mark)
+                          (esync--cursor-position-line-char)))))))))
+
 
 ;;; * Data Validation
 (defun esync--valid-uri-p (workspace uri)
