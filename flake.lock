@@ -6,11 +6,11 @@
         "parts": "parts"
       },
       "locked": {
-        "lastModified": 1751902315,
-        "narHash": "sha256-raogcH67QUYJLnOfCYs4tf2urKJ5H8GFxkC+zXcM8eA=",
+        "lastModified": 1752832398,
+        "narHash": "sha256-Ikz4kDO1AHEfvvCXwwocWpw9Nqszvrguisq4CJSCcgM=",
         "owner": "ethersync",
         "repo": "ethersync",
-        "rev": "bb1518c6ba4d917cf7b34d3b5e1446881d7d4d4a",
+        "rev": "9039b50a92a476ced005b6d2ce9f6cc1e02b13cb",
         "type": "github"
       },
       "original": {
@@ -52,11 +52,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1751949589,
-        "narHash": "sha256-mgFxAPLWw0Kq+C8P3dRrZrOYEQXOtKuYVlo9xvPntt8=",
+        "lastModified": 1752900028,
+        "narHash": "sha256-dPALCtmik9Wr14MGqVXm+OQcv7vhPBXcWNIOThGnB/Q=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "9b008d60392981ad674e04016d25619281550a9d",
+        "rev": "6b4955211758ba47fac850c040a27f23b9b4008f",
         "type": "github"
       },
       "original": {
