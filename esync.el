@@ -81,8 +81,8 @@ If these ranges are unchanged since the last invocation, return nil."
                     :end
                     (if (null mark)
                         (esync--cursor-position-line-char)
-                      (save-excursion
-                        (exchange-point-and-mark)
+                      (save-mark-and-excursion
+                        (goto-char mark)
                         (esync--cursor-position-line-char))))))))
 
 (defun esync--cursor-position-line-char ()
@@ -92,6 +92,7 @@ If these ranges are unchanged since the last invocation, return nil."
       (let ((line (- (string-to-number (format-mode-line "%l")) 1))
             (char (current-column)))
         (list :line line :character char)))))
+
 ;;; * Ethersync Client
 ;;; ** Process Management
 (defun esync--start-client-process (workspace)
@@ -131,9 +132,8 @@ If these ranges are unchanged since the last invocation, return nil."
                       :process (esync--start-client-process
                                 workspace)
                       :on-shutdown #'esync--on-client-shutdown
-                      :notification-dispatcher (funcall
-                                                spread
-                                                #'esync--handle-notification))))
+                      :notification-dispatcher (funcall spread
+                                                        #'esync--handle-notification))))
     (setf (esync--workspace-client workspace) connection)))
 
 ;;; *** Logging
