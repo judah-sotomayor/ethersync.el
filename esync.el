@@ -43,7 +43,12 @@
   (executable-find "ethersync")
   "The path to the ethersync executable."
   :type 'string
-  :group 'magit)
+  :group 'esync)
+
+(defcustom esync-support-evil t
+  "Whether to support evil-mode or not."
+  :type 'string
+  :group 'esync)
 
 (cl-defstruct esync--workspace
   (root nil)
@@ -71,27 +76,38 @@
 (defun esync--local-cursor-ranges ()
   "Return the ranges for the current cursor and mark.
 If these ranges are unchanged since the last invocation, return nil."
-  (let ((point (point))
-        (mark (when (use-region-p) (mark))))
-    (unless (and (eq point esync--last-point)
-                 (eq mark esync--last-mark))
-      (setq esync--last-point point
-            esync--last-mark mark)
-      (vector (list :start (esync--cursor-position-line-char)
-                    :end
-                    (if (null mark)
-                        (esync--cursor-position-line-char)
-                      (save-mark-and-excursion
-                        (goto-char mark)
-                        (esync--cursor-position-line-char))))))))
+  (if (and esync-support-evil evil-visual-block-overlays)
+      (save-excursion
+        (cl-map 'vector (lambda (o)
+                          (list :start (progn
+                                         (goto-char (overlay-start o))
+                                         (esync--cursor-position-line-char))
+                                :end (progn
+                                       (goto-char (overlay-end o))
+                                       (esync--cursor-position-line-char))))
+                evil-visual-block-overlays))
+
+    ;; else
+    (let ((point (point))
+          (mark (when (use-region-p) (mark))))
+      (unless (and (eq point esync--last-point)
+                   (eq mark esync--last-mark))
+        (setq esync--last-point point
+              esync--last-mark mark)
+        (vector (list :start (esync--cursor-position-line-char)
+                      :end
+                      (if (null mark)
+                          (esync--cursor-position-line-char)
+                        (save-mark-and-excursion
+                          (goto-char mark)
+                          (esync--cursor-position-line-char)))))))))
 
 (defun esync--cursor-position-line-char ()
   "Return current cursor position line and column."
-  (save-excursion
-    (without-restriction
-      (let ((line (- (string-to-number (format-mode-line "%l")) 1))
-            (char (current-column)))
-        (list :line line :character char)))))
+  (without-restriction
+    (let ((line (- (string-to-number (format-mode-line "%l")) 1))
+          (char (current-column)))
+      (list :line line :character char))))
 
 ;;; * Ethersync Client
 ;;; ** Process Management
