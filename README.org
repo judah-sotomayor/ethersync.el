@@ -1,0 +1,20 @@
+#+title: Ethersync.el
+* Current Features
+- Cursor support.
+
+* Testing the Connection
+1. Setup a second shell where you have an ethersync client. Typically ~nix shell github:ethersync/ethersync~ works well for this.
+   Ensure you're in a fresh testing directory.
+2. Run ~ethersync share~ from emacs terminal
+3. Create a workspace in ielm using ~make-esync--workspace :root /path/to/ethersync.el~
+4. Create a new connection using ~esync--connect-to-daemon~ on the workspace object you created.
+5. Run ~ethersync join~ in the testing directory to start syncing
+6. Use neovim (~nix run github:ethersync/ethersync#neovim~) inside the external testing directory to connect to the second daemon.
+** Troubleshooting
+- What version of ethersync are you using?
+- Where does ~ethersync-executable~ point to?
+- Is the client process running?
+- Any events in the [[elisp:(switch-to-buffer "*anonymous events*")][events buffer]]?
+
+* Relevant Info nodes
+- [[info:]]
