@@ -50,6 +50,9 @@
   :type 'string
   :group 'esync)
 
+(defvar-local esync--last-point nil)
+(defvar-local esync--last-mark nil)
+
 (cl-defstruct esync--workspace
   (root nil)
   (daemon nil)
@@ -60,18 +63,18 @@
   (cursors nil))
 
 ;;; * Hooks
+(defvar esync--buffer-hooks-alist
+  '((post-command-hook . esync--update-local-cursor)))
 
-(defvar-local esync--last-point nil)
-(defvar-local esync--last-mark nil)
+(defun esync--install-buffer-hooks ()
+  "Install the hooks for a buffer."
+  (-map
+   (-lambda ((hook . function))
+     (add-hook hook function nil t))
+   esync--buffer-hooks-alist))
 
-(defun esync--update-local-cursor ()
-  "Check for point or mark movement and notify the daemon."
 
-  (if-let* ((ranges (esync--local-cursor-ranges))
-            (client (esync--workspace-client esync--cached-workspace))
-            (file "file:///Users/user/projects/ethersync.el/test.txt"))
-      (jsonrpc-notify client
-                      :cursor `(:uri ,file :ranges ,ranges))))
+
 
 
 
@@ -211,7 +214,17 @@ Overlay should be across RANGES. Use URI and NAME."
                  :ranges ranges)
            (esync--workspace-cursors workspace)))
 
-;;; * Position and Coordinates Control
+
+
+(defun esync--update-local-cursor ()
+  "Check for point or mark movement and notify the daemon."
+  (if-let* ((ranges (esync--local-cursor-ranges))
+            (client (esync--workspace-client esync--cached-workspace))
+            (file "file:///Users/user/projects/ethersync.el/test.txt"))
+      (jsonrpc-notify client
+                      :cursor `(:uri ,file :ranges ,ranges))))
+
+;;; *** Position and Coordinates Control
 (defmacro esync--with-position (line char &rest body)
   "Execute BODY at position LINE, CHAR."
   `(save-excursion
@@ -259,7 +272,6 @@ If these ranges are unchanged since the last invocation, return nil."
                         (save-mark-and-excursion
                           (goto-char mark)
                           (esync--cursor-position-line-char)))))))))
-
 
 ;;; * Data Validation
 (defun esync--valid-uri-p (workspace uri)
