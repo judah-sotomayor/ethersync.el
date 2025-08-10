@@ -61,7 +61,7 @@
 (cl-defstruct esync--workspace
   (root nil)
   (daemon nil)
-  (client nil)
+  (connection nil)
   (ewoc nil)
   (buffers nil)
   (status nil)
@@ -69,10 +69,10 @@
 
 ;;; * Hooks
 (defvar esync--buffer-hooks-alist
-  '((post-command-hook . esync--update-local-cursor)))
+  '((post-command-hook . esync--signal-cursor)))
 
 (defun esync--install-buffer-hooks ()
-  "Install the hooks for a buffer."
+  "Install esync hooks in the current buffer."
   (-map
    (-lambda ((hook . function))
      (add-hook hook function nil t))
@@ -90,11 +90,12 @@
 
 ;;; * Ethersync Client
 ;;; ** Process Management
-(defun esync--start-client-process (workspace)
+(defun esync--start-connection (workspace)
   "Start an ethersync client in WORKSPACE."
   (let* ((stderr (generate-new-buffer "*Ethersync Client::Stderr*"))
          (stdout (generate-new-buffer "*Ethersync Client::Stdout*"))
-         (default-directory (expand-file-name (esync--workspace-root workspace))))
+         (default-directory (expand-file-name (esync--workspace-root workspace)))
+         )
     (make-process
      :name "Ethersync Client"
      :command (flatten-tree
@@ -103,16 +104,17 @@
      :connection-type 'pipe
      :coding 'utf-8-emacs-unix
      :noquery t
+     :buffer stdout
      :stderr stderr
-     :filter #'esync--client-filter
-     :file-handler t)))
+     :filter #'esync--connection-filter
+     )))
 
 (cl-defmethod esync-process-kill ((proc process))
   "Kill PROC if still running."
-  (when (process-live-p process)
-    (kill-process process)))
+  (when (process-live-p proc)
+    (kill-process proc)))
 
-(defun esync--on-client-shutdown (connection)
+(defun esync--on-connection-shutdown (connection)
   "Handle CONNECTION shutdown."
   (warn "Client Shutdown!!!"))
 
@@ -120,45 +122,60 @@
 (defun esync--connect-to-daemon (workspace)
   "Connect WORKSPACE to an active daemon using a client process."
   (let* ((spread (lambda (fn)
-                   (lambda (server method params)
-                     (apply fn workspace server method (append params nil)))))
+                   (lambda (connection method params)
+                     (apply fn workspace connection method (append params nil)))))
          (connection (make-instance
                       jsonrpc-process-connection
-                      :process (esync--start-client-process
+                      :process (esync--start-connection
                                 workspace)
-                      :on-shutdown #'esync--on-client-shutdown
+                      :on-shutdown #'esync--on-connection-shutdown
                       :notification-dispatcher (funcall spread
                                                         #'esync--handle-notification))))
-    (setf (esync--workspace-client workspace) connection)))
+    (setf (esync--workspace-connection workspace) connection)))
 
 ;;; *** Logging
 (defun esync--create-log (&rest args)
   "Create a log using ARGS."
   (message (pp args)))
 
-;;; ** JSONRPC Requests
-(defun esync--client-open-file (client file)
-  "Open FILE in CLIENT.
+;;; ** Editor-to-Client Signals (JSONRPC Requests)
+
+
+(defun esync--signal-open-file (connection file)
+  "Open FILE in CONNECTION.
 FILE must be in the lsp uri format: \"file:///path/to/file\""
-  (jsonrpc-async-request client :open `(:uri ,file)
-                         :success-fn (esync--create-log "Opened file" file)
-                         :timeout-fn (esync--create-log "Done" file)))
+  (jsonrpc-async-request connection :open `(:uri ,file)
+                         :success-fn (esync--create-log "Opened file" file)))
+
+(defun esync--signal-close-file (connection file)
+  "Close FILE in CONNECTION.
+FILE must be in the lsp uri format: \"file:///path/to/file\""
+  (jsonrpc-async-request connection :close `(:uri ,file)
+                         :success-fn (esync--create-log "Close file" file)))
+
+(defun esync--signal-cursor ()
+  "Check for point or mark movement and notify the daemon."
+  (if-let* ((ranges (esync--local-cursor-ranges))
+            (connection (esync--workspace-connection (esync--current-workspace)))
+            (file (esync--url-for-buffer)))
+      (jsonrpc-notify connection
+                      :cursor `(:uri ,file :ranges ,ranges))))
 
 ;;; ** Notification Handlers
 (cl-defgeneric esync--handle-notification (workspace connection method &rest params)
   "Handle ethersync client CONNECTION's METHOD notification with PARAMS.
-WORKSPACE is passed through for specific data needs.")
+  WORKSPACE is passed through for specific data needs.")
 
 (cl-defmethod esync--handle-notification
-  (_workspace _server method &key &allow-other-keys)
+  (_workspace _connection method &key &allow-other-keys)
   "Handle unknown METHOD."
   (message (format "Bad request! %s" method)))
 
 (cl-defmethod esync--handle-notification
-  (workspace server (method (eql cursor)) &key name ranges uri userid)
-  "Handle METHOD :cursor from SERVER in WORKSPACE.
-Cursor notifications include URI, RANGE, NAME, and USERID parameters.
-When a request arrives, update the buffer with a new overlay."
+  (workspace connection (method (eql cursor)) &key name ranges uri userid)
+  "Handle METHOD :cursor from CONNECTION in WORKSPACE.
+  Cursor notifications include URI, RANGE, NAME, and USERID parameters.
+  When a request arrives, update the buffer with a new overlay."
   (esync--update-overlay workspace name ranges uri userid))
 
 ;;; * Overlay Management
@@ -181,35 +198,35 @@ Overlay should be across RANGES. Use URI and NAME."
     (when (string-equal (overlay-get o 'esync-user-id) userid)
       (delete-overlay o))))
 
-'(defun esync--set-overlays (userid ranges name)
-   "Create an overlay in current buffer over RANGES for USERID."
-   (-let* ((r (seq-elt ranges 0))
-           ((&plist :start ) r)
-           ((&plist :line start-l) start)
-           (start-position (esync--position-from-ethersync-position start-l 0))
-           (end-position (esync--with-position start-l 0 (end-of-line) (point)))
-           (new-overlay (make-overlay start-position end-position nil t nil)))
+(defun esync--set-overlays (userid ranges name)
+  "Create an overlay in current buffer over RANGES for USERID."
+  (-let* ((r (seq-elt ranges 0))
+          ((&plist :start ) r)
+          ((&plist :line start-l) start)
+          (start-position (esync--position-from-ethersync-position start-l 0))
+          (end-position (esync--with-position start-l 0 (end-of-line) (point)))
+          (new-overlay (make-overlay start-position end-position nil t nil)))
 
-     (overlay-put new-overlay 'category 'esync-name)
-     (overlay-put new-overlay 'esync-user-id userid)
-     (overlay-put new-overlay 'after-string
-                  (propertize (concat " " name) 'face
-                              `(:foreground ,(esync--get-user-color userid)))))
-   (seq-doseq (range ranges)
-     (-let* (((&plist :start :end) range)
-             ((&plist :character start-c :line start-l) start)
-             ((&plist :character end-c :line end-l) end)
-             (start-position
-              (esync--position-from-ethersync-position start-l start-c))
-             (end-position
-              (+ (esync--position-from-ethersync-position end-l end-c)
-                 (if (= start-c end-c) 1 0)))
-             (color (esync--get-user-color userid))
-             (new-overlay (make-overlay start-position end-position nil t nil)))
-       (overlay-put new-overlay 'category 'esync-cursor)
-       (overlay-put new-overlay 'esync-user-id userid)
-       (overlay-put new-overlay 'face `(:background ,color))
-       )))
+    (overlay-put new-overlay 'category 'esync-name)
+    (overlay-put new-overlay 'esync-user-id userid)
+    (overlay-put new-overlay 'after-string
+                 (propertize (concat " " name) 'face
+                             `(:foreground ,(esync--get-user-color userid)))))
+  (seq-doseq (range ranges)
+    (-let* (((&plist :start :end) range)
+            ((&plist :character start-c :line start-l) start)
+            ((&plist :character end-c :line end-l) end)
+            (start-position
+             (esync--position-from-ethersync-position start-l start-c))
+            (end-position
+             (+ (esync--position-from-ethersync-position end-l end-c)
+                (if (= start-c end-c) 1 0)))
+            (color (esync--get-user-color userid))
+            (new-overlay (make-overlay start-position end-position nil t nil)))
+      (overlay-put new-overlay 'category 'esync-cursor)
+      (overlay-put new-overlay 'esync-user-id userid)
+      (overlay-put new-overlay 'face `(:background ,color))
+      )))
 
 (defun esync--get-user-color (userid)
   "Return a color for USERID."
@@ -225,14 +242,6 @@ Overlay should be across RANGES. Use URI and NAME."
            (esync--workspace-cursors workspace)))
 
 
-
-(defun esync--update-local-cursor ()
-  "Check for point or mark movement and notify the daemon."
-  (if-let* ((ranges (esync--local-cursor-ranges))
-            (client (esync--workspace-client esync--cached-workspace))
-            (file "file:///Users/user/projects/ethersync.el/test.txt"))
-      (jsonrpc-notify client
-                      :cursor `(:uri ,file :ranges ,ranges))))
 
 ;;; *** Position and Coordinates Control
 (defmacro esync--with-position (line char &rest body)
@@ -257,7 +266,7 @@ Overlay should be across RANGES. Use URI and NAME."
 
 (defun esync--local-cursor-ranges ()
   "Return the ranges for the current cursor and mark.
-If these ranges are unchanged since the last invocation, return nil."
+  If these ranges are unchanged since the last invocation, return nil."
   (if (and esync-support-evil evil-visual-block-overlays)
       (save-excursion
         (cl-map 'vector (lambda (o)

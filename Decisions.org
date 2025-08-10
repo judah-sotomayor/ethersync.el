@@ -1,0 +1,24 @@
+#+title: Decisions
+An incomplete log of the decisions I made while building this.
+
+* Names
+#+begin_quote
+There are only two hard things in Computer Science: cache invalidation and naming things.
+
+-- Phil Karlton
+#+end_quote
+
+** Daemon-client-editor
+The ethersync system uses three main components.
+1. The ethersync daemon, which is launched by running ~ethersync share~ in a directory.
+   This sits around and waits for editors to connect via its directory socket.
+   It also waits for peers to connect using peer-to-peer connections.
+   Components related to the daemon will be called ~daemon~.
+2. The ethersync client, which is launched by running ~ethersync client~ in a directory or subdirectory of that currently has an ethersync daemon. This connects to the daemon via a socket and the editor via jsonrpc.
+   Components related to the client will be called ~connection~, which will disambiguate the fact that the editor is in a way a client to the client, which is a server.
+3. The editor, which calls ~ethersync client~ and connects to it via ~jsonrpc~ over standard I/O.
+   esync.el itself represents the editor. All components will be prefixed by ~esync~.
+
+** Signals and Messages
+The editor sends four message types to the daemon: ~open~, ~close~, ~edit~, and ~cursor~.
+Each of these will be named ~esync--signal-<message-type>~.
