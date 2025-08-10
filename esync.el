@@ -52,6 +52,11 @@
 
 (defvar-local esync--last-point nil)
 (defvar-local esync--last-mark nil)
+(defvar-local esync--cached-workspace nil
+  "A cached reference to the current esync workspace.")
+
+(defvar esync--workspaces-by-project (make-hash-table :test #'equal)
+  "A hash-table of all the esync workspaces, keyed to the containing project path.")
 
 (cl-defstruct esync--workspace
   (root nil)
@@ -77,6 +82,11 @@
 
 
 
+(defun esync--current-workspace ()
+  "Return the default workspace for the current buffer."
+  (or esync--cached-workspace
+      (setq esync--cached-workspace
+            (gethash (esync--current-project-root) esync--workspaces-by-project))))
 
 ;;; * Ethersync Client
 ;;; ** Process Management
@@ -274,12 +284,38 @@ If these ranges are unchanged since the last invocation, return nil."
                           (esync--cursor-position-line-char)))))))))
 
 ;;; * Data Validation
-(defun esync--valid-uri-p (workspace uri)
-  "Determine if a URI is valid for the WORKSPACE."
-  (let* ((parsed (url-generic-parse-url uri))
+
+
+;;; * File Handling
+;;; Functions in here relate to the management of buffers and files.
+;;; For example, creating a URL for a buffer.
+(defun esync--url-for-buffer ()
+  "Return the URL for the current buffer, as a string.
+
+If the current buffer is not a file, return nil."
+  (let ((name (buffer-file-name)))
+    (if name (concat "file://" name))))
+
+
+(defun esync--valid-url-p (url)
+  "Determine if URL is valid for the current workspace.
+
+To be valid, the URL must point to a file in the current workspace.
+The file URL points to need not exist.
+The current workspace's directory will of course exist."
+  (let* ((parsed (url-generic-parse-url url))
          (type (url-type parsed))
-         (directory (file-name-directory (url-filename parsed))))
-    (and (string-equal type "file"))))
+         (file (url-filename parsed)))
+    (and (string= type "file")
+         (length> file 0)
+         (file-in-directory-p
+          file
+          (esync--workspace-root esync--cached-workspace)))))
+
+(defun esync--current-project-root ()
+  "Return the current project's root."
+  (project-root (project-current)))
+;;; * ENDING
 
 (provide 'esync)
 ;;; esync.el ends here
