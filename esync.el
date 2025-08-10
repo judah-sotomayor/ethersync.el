@@ -40,7 +40,7 @@
 (require 'dash)
 
 (defcustom ethersync-executable
-  (executable-find "ethersync")
+  (or  (executable-find "ethersync") "ethersync")
   "The path to the ethersync executable."
   :type 'string
   :group 'esync)
