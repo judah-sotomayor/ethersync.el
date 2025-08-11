@@ -329,12 +329,15 @@ Overlay should be across RANGES. Use URI and NAME."
 ;;; * File Handling
 ;;; Functions in here relate to the management of buffers and files.
 ;;; For example, creating a URL for a buffer.
-(defun esync--url-for-buffer ()
-  "Return the URL for the current buffer, as a string.
-
+(defun esync--url-for-buffer (&optional buffer-name)
+  "Return the URL for either the current buffer or BUFFER-NAME, as a string.
 If the current buffer is not a file, return nil."
-  (let ((name (buffer-file-name)))
-    (if name (concat "file://" name))))
+  (let ((name
+         (buffer-file-name
+          (when buffer-name
+            (get-buffer buffer-name)))))
+    (when name (concat "file://" name))))
+
 
 
 (defun esync--valid-url-p (url)
@@ -353,14 +356,18 @@ The current workspace's directory will of course exist."
           (esync--workspace-root esync--cached-workspace)))))
 
 (defun esync--open-current-buffer ()
-  "signal open for the current file."
+  "Signal open for the current file, and add to the workspace list."
+  (setq (esync--workspace-buffers (esync--current-workspace))
+        (cons (buffer-name) (esync--workspace-buffers (esync--current-workspace))))
   (let ((file (esync--url-for-buffer)))
     (esync--signal-open-file
      (esync--workspace-connection esync--cached-workspace)
      file)))
 
 (defun esync--close-current-buffer ()
-  "Signal close for the current file."
+  "Signal close for the current file, and remove from the workspace list."
+  (setq (esync--workspace-buffers (esync--current-workspace))
+        (delq (buffer-name) (esync--workspace-buffers (esync--current-workspace))))
   (let ((file (esync--url-for-buffer)))
     (esync--signal-close-file
      (esync--workspace-connection esync--cached-workspace)
