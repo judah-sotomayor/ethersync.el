@@ -113,7 +113,7 @@
 
 Do not activate if it is already activated, if the file is not a project file,
  or if there is no open esync workspace.
-If activated, signal open and send the cursor to the current connection."
+If activated, set up the buffer with ethersync and the current workspace."
   (unless esync-mode
     (when (and buffer-file-name (esync--current-workspace))
       (esync-mode)
@@ -353,7 +353,7 @@ The current workspace's directory will of course exist."
          (length> file 0)
          (file-in-directory-p
           file
-          (esync--workspace-root esync--cached-workspace)))))
+          (esync--workspace-root (esync--current-workspace))))))
 
 (defun esync--open-current-buffer ()
   "Signal open for the current file, and add to the workspace list."
@@ -361,7 +361,7 @@ The current workspace's directory will of course exist."
         (cons (buffer-name) (esync--workspace-buffers (esync--current-workspace))))
   (let ((file (esync--url-for-buffer)))
     (esync--signal-open-file
-     (esync--workspace-connection esync--cached-workspace)
+     (esync--workspace-connection (esync--current-workspace))
      file)))
 
 (defun esync--close-current-buffer ()
@@ -370,15 +370,20 @@ The current workspace's directory will of course exist."
         (delq (buffer-name) (esync--workspace-buffers (esync--current-workspace))))
   (let ((file (esync--url-for-buffer)))
     (esync--signal-close-file
-     (esync--workspace-connection esync--cached-workspace)
+     (esync--workspace-connection (esync--current-workspace))
      file)))
 
 (defun esync--create-buffer-workspace ()
   "Initialize a workspace in the current buffer.
 Connect the workspace to the daemon."
   (let ((root (file-name-directory (buffer-file-name))))
-    (prog1 (setq esync--cached-workspace (make-esync--workspace :root root))
-      (esync--connect-to-daemon esync--cached-workspace))))
+    (prog1
+        (setq esync--cached-workspace
+              (make-esync--workspace
+               :root root
+               :cursors (make-hash-table :test #'equal)))
+      (esync--connect-to-daemon
+       (esync--current-workspace)))))
 
 (defun esync--current-project-root ()
   "Return the current project's root."
