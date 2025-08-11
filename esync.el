@@ -69,7 +69,8 @@
 
 ;;; * Hooks
 (defvar esync--buffer-hooks-alist
-  '((post-command-hook . esync--signal-cursor)))
+  '((post-command-hook . esync--signal-cursor)
+    (kill-buffer-hook . esync--close-current-buffer)))
 
 (defun esync--install-buffer-hooks ()
   "Install esync hooks in the current buffer."
@@ -78,9 +79,28 @@
      (add-hook hook function nil t))
    esync--buffer-hooks-alist))
 
+(defun esync--uninstall-buffer-hooks ()
+  "Install the hooks for a buffer."
+  (-map
+   (-lambda ((hook . function))
+     (remove-hook hook function t))
+   esync--buffer-hooks-alist))
 
+(define-minor-mode esync-mode
+  "Mode for collaborative buffers."
+  :lighter " ESYNC"
+  (if esync-mode
+      (progn
+        (unless (esync--current-workspace)
+          (puthash (esync--current-project-root)
+                   (esync--create-buffer-workspace)
+                   esync--workspaces-by-project))
+        (esync--install-buffer-hooks))
 
-
+    (esync--uninstall-buffer-hooks)
+    (setq esync--cached-workspace nil
+          esync--last-mark nil
+          esync--last-point nil)))
 
 (defun esync--current-workspace ()
   "Return the default workspace for the current buffer."
@@ -88,14 +108,25 @@
       (setq esync--cached-workspace
             (gethash (esync--current-project-root) esync--workspaces-by-project))))
 
+(defun esync--maybe-activate-esync-mode ()
+  "Maybe activate `esync-mode'.
+
+Do not activate if it is already activated, if the file is not a project file,
+ or if there is no open esync workspace.
+If activated, signal open and send the cursor to the current connection."
+  (unless esync-mode
+    (when (and buffer-file-name (esync--current-workspace))
+      (esync-mode)
+      (esync--open-current-buffer))))
+(add-hook 'after-change-major-mode-hook #'esync--maybe-activate-esync-mode)
+
 ;;; * Ethersync Client
 ;;; ** Process Management
 (defun esync--start-connection (workspace)
   "Start an ethersync client in WORKSPACE."
   (let* ((stderr (generate-new-buffer "*Ethersync Client::Stderr*"))
          (stdout (generate-new-buffer "*Ethersync Client::Stdout*"))
-         (default-directory (expand-file-name (esync--workspace-root workspace)))
-         )
+         (default-directory (expand-file-name (esync--workspace-root workspace))))
     (make-process
      :name "Ethersync Client"
      :command (flatten-tree
@@ -151,7 +182,7 @@ FILE must be in the lsp uri format: \"file:///path/to/file\""
   "Close FILE in CONNECTION.
 FILE must be in the lsp uri format: \"file:///path/to/file\""
   (jsonrpc-async-request connection :close `(:uri ,file)
-                         :success-fn (esync--create-log "Close file" file)))
+                         :success-fn (esync--create-log "Closed file" file)))
 
 (defun esync--signal-cursor ()
   "Check for point or mark movement and notify the daemon."
@@ -320,6 +351,27 @@ The current workspace's directory will of course exist."
          (file-in-directory-p
           file
           (esync--workspace-root esync--cached-workspace)))))
+
+(defun esync--open-current-buffer ()
+  "signal open for the current file."
+  (let ((file (esync--url-for-buffer)))
+    (esync--signal-open-file
+     (esync--workspace-connection esync--cached-workspace)
+     file)))
+
+(defun esync--close-current-buffer ()
+  "Signal close for the current file."
+  (let ((file (esync--url-for-buffer)))
+    (esync--signal-close-file
+     (esync--workspace-connection esync--cached-workspace)
+     file)))
+
+(defun esync--create-buffer-workspace ()
+  "Initialize a workspace in the current buffer.
+Connect the workspace to the daemon."
+  (let ((root (file-name-directory (buffer-file-name))))
+    (prog1 (setq esync--cached-workspace (make-esync--workspace :root root))
+      (esync--connect-to-daemon esync--cached-workspace))))
 
 (defun esync--current-project-root ()
   "Return the current project's root."
