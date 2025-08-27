@@ -1,0 +1,28 @@
+classes: @common.style
+
+Changing a File {
+  shape: sequence_diagram
+  ...@common.sequence_objects
+
+  Remote changes {
+    edaemon.start -> eclient.start:|
+    Cursor movements,
+    File changes|
+
+    eclient.start -> Emacs.change: |
+    Cursor movements,
+    File changes| { class: unix }
+    Emacs.change -> Emacs.change: Update buffer { class: elisp }
+  }
+
+  Local changes {
+    Emacs.change2 -> eclient.start2:|
+    Cursor movements,
+    File changes| { class: unix }
+
+    eclient.start2 -> edaemon.start2:|
+    Cursor movements,
+    File changes|
+    edaemon.start2 -> edaemon.start2: Update peers
+  }
+}

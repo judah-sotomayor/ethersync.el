@@ -1,0 +1,18 @@
+classes: @common.style
+Initializing a Session: {
+  shape: sequence_diagram
+  ...@common.sequence_objects
+
+
+  Emacs -> edaemon.start: Start daemon (directory, socket name) {class: elisp}
+  Emacs -> eclient.start: Start client (socket name) {class: elisp}
+  eclient.start -> edaemon.start: Connect
+
+  Emacs.buffer1 -> eclient.start: Open buffer (file) { class: unix }
+  eclient.start -> edaemon.start: Open buffer (file)
+  edaemon.start -> eclient.start: Buffer data (cursors, changes)
+  eclient.start -> Emacs.buffer1: Buffer data (cursors, changes) { class: unix }
+  Emacs.buffer1 -> Emacs.buffer1: Update buffer { class: elisp }
+
+
+}

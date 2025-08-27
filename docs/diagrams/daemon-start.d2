@@ -1,0 +1,52 @@
+vars: {
+  d2-config: {
+    layout-engine: elk
+    # Terminal theme code
+  }
+}
+
+start: {
+  shape: oval
+  style.stroke: green
+  style.stroke-width: 3
+}
+
+get-buffer-project: Get project containing buffer {
+
+}
+in-project: In project? {
+  shape: diamond
+}
+
+project-shared: Project in list of shared projects? {
+  shape: diamond
+}
+
+project-list: {
+  shape: stored_data
+}
+
+query-for-project: Prompt user for project {
+shape: Parallelogram
+}
+
+project-list --> project-shared
+
+start --> get-buffer-project: Start ethersync
+get-buffer-project --> in-project
+in-project --> project-shared: Yes
+in-project --> query-for-project: No
+query-for-project --> in-project
+
+project-shared --> already-shared: Yes
+project-shared --> start-daemon: No
+
+start-daemon: Start Daemon in project {
+  style.stroke: red
+  shape: oval
+}
+
+already-shared: Project already shared {
+  style.stroke: red
+  shape: oval
+}
